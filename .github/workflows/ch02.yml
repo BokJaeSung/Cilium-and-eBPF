@@ -1,39 +1,72 @@
-name: ch02
+name: ch02 — Programs, Maps and Tail Calls
+
 on:
   workflow_dispatch:
   push:
-    paths: ["ch02/**", ".github/workflows/ch02.yml"]
+    paths: ["ch02/*.py", "ch02/run.sh", ".github/workflows/ch02.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ch02
+  cancel-in-progress: false
 
 jobs:
   lab:
+    name: BCC 실습 다섯 개 실행과 판정
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
+        shell: bash
         working-directory: ch02
     steps:
-      - uses: actions/checkout@v4
-      - name: install bcc
+      - name: 실습 코드 가져오기
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 기록 폴더 준비
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
-      - name: environment
+          mkdir -p out/logs
+          git rev-parse HEAD > out/source-sha.txt
+
+      - name: BCC 설치
         run: |
-          mkdir -p out
+          set -o pipefail
+          {
+            test "$(uname -m)" = x86_64
+            sudo apt-get update -qq
+            sudo apt-get install -y -q bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
+          } 2>&1 | tee out/logs/setup.log
+
+      - name: 실행 환경 기록
+        run: |
           {
             echo "arch:   $(uname -m)"
             echo "kernel: $(uname -r)"
             . /etc/os-release; echo "os:     $PRETTY_NAME"
             echo "bcc:    $(dpkg-query -W -f='${Version}' python3-bpfcc)"
             echo "runner uid: $(id -u)"
-            echo "tracefs: $(ls -d /sys/kernel/tracing 2>/dev/null) / debugfs: $(ls -d /sys/kernel/debug/tracing 2>/dev/null)"
+            echo "tracefs: $(ls -d /sys/kernel/tracing 2>/dev/null) / debugfs: $(ls -d /sys/kernel/debug/tracing 2>/dev/null || echo '(마운트 X)')"
           } | tee out/env.txt
-      - run: sudo ./run.sh hello.py 4
-      - run: sudo ./run.sh hello_map.py 5
-      - run: sudo ./run.sh hello_perf.py 3
-      - run: sudo ./run.sh hello_ring.py 3
-      - name: tail call (요약만 남긴다)
+
+      - name: hello — execve 에 kprobe, trace_pipe 로 출력 (2.2–2.4)
+        run: sudo ./run.sh hello.py 4 2>&1 | tee out/logs/hello.log
+
+      - name: 해시 맵 — UID 별 execve 횟수 (3.2)
+        run: sudo ./run.sh hello_map.py 5 2>&1 | tee out/logs/hello_map.log
+
+      - name: perf 버퍼 — 구조체 전달 (3.4)
+        run: sudo ./run.sh hello_perf.py 3 2>&1 | tee out/logs/hello_perf.log
+
+      - name: 링 버퍼 — 같은 구조체를 CPU 공용 버퍼로 (3.3)
+        run: sudo ./run.sh hello_ring.py 3 2>&1 | tee out/logs/hello_ring.log
+
+      - name: 꼬리 호출 — 시스템 콜 번호로 프로그램 고르기 (4.3, 요약만 보관)
         run: |
-          sudo ./run.sh hello_tail.py 3
+          sudo ./run.sh hello_tail.py 3 2>&1 | tee out/logs/hello_tail.log
           f=out/hello_tail.txt
           {
             echo "total lines: $(wc -l < $f)"
@@ -42,18 +75,30 @@ jobs:
             echo "--- Another syscall 상위 번호"
             grep -o "Another syscall: [0-9]*" $f | sort | uniq -c | sort -rn | head -8
             echo "--- 기록한 프로세스 상위"
-            grep -oE "^b'[[:space:]]*[^ ]+-[0-9]+" $f | sed -E "s/^b'[[:space:]]*//; s/-[0-9]+$//" | sort | uniq -c | sort -rn | head -5
-          } > out/hello_tail_summary.txt
+            grep -oE "^b'[[:space:]]*[^ ]+-[0-9]+" $f | sed -E "s/^b'[[:space:]]*//; s/-[0-9]+$//" \
+              | sort | uniq -c | sort -rn | head -5
+          } | sed -E 's/provjobd[0-9]+/(러너 에이전트)/' > out/hello_tail_summary.txt
           sudo rm $f
-      - name: without root
+
+      - name: root 없이 실행 — 거부 확인 (2.3)
         run: |
           python3 -u hello.py > out/hello_noroot.txt 2>&1 || true
-          tail -5 out/hello_noroot.txt
-      - name: show
+          tail -3 out/hello_noroot.txt
+
+      - name: 판정과 실행 요약
         if: always()
-        run: for f in out/*.txt; do echo "===== $f"; head -40 "$f"; done
-      - uses: actions/upload-artifact@v4
+        run: |
+          sudo chown -R "$(id -u)" out
+          python3 summarize.py out > /dev/null; rc=$?
+          cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+          ( cd out && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS.txt )
+          exit $rc
+
+      - name: 결과 파일 보관
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: ch02-out
+          name: ch02-${{ github.run_id }}-${{ github.run_attempt }}
           path: ch02/out/
+          retention-days: 90
+          if-no-files-found: error
