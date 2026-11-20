@@ -2,7 +2,13 @@
 
 블로그 글: [Cilium & eBPF.02 Programs, Maps and Tail Calls](https://kukie.tech/posts/cilium-ebpf-02/)
 
-글의 코드를 그대로 GitHub Actions 러너에서 실행한 기록입니다. 워크플로: [`.github/workflows/ch02.yml`](../.github/workflows/ch02.yml)
+글의 코드를 그대로 GitHub Actions 러너에서 실행한 기록입니다.
+
+- 워크플로: [`.github/workflows/ch02.yml`](../.github/workflows/ch02.yml) — 실습마다 단계 하나, 마지막에 판정
+- 실행 기록: [Actions run 44720001818](https://github.com/BokJaeSung/Cilium-and-eBPF/actions/runs/44720001818) — 첫 화면의 Summary 가 판정 표와 대표 출력, 아티팩트 `ch02-*` 에 원본 출력·로그·SHA256SUMS (90일 보관)
+- 판정 스크립트: [`summarize.py`](summarize.py)
+
+아래 출력은 그 이전 실행에서 옮긴 것입니다. PID·시각만 다르고 내용은 같습니다.
 
 ## 실행 환경
 
