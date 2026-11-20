@@ -1,0 +1,46 @@
+name: ch02
+on:
+  workflow_dispatch:
+  push:
+    paths: ["ch02/**", ".github/workflows/ch02.yml"]
+
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ch02
+    steps:
+      - uses: actions/checkout@v4
+      - name: install bcc
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bpfcc-tools python3-bpfcc linux-headers-$(uname -r)
+      - name: environment
+        run: |
+          mkdir -p out
+          {
+            echo "arch:   $(uname -m)"
+            echo "kernel: $(uname -r)"
+            . /etc/os-release; echo "os:     $PRETTY_NAME"
+            echo "bcc:    $(dpkg-query -W -f='${Version}' python3-bpfcc)"
+            echo "runner uid: $(id -u)"
+            echo "tracefs: $(ls -d /sys/kernel/tracing 2>/dev/null) / debugfs: $(ls -d /sys/kernel/debug/tracing 2>/dev/null)"
+          } | tee out/env.txt
+      - run: sudo ./run.sh hello.py 4
+      - run: sudo ./run.sh hello_map.py 5
+      - run: sudo ./run.sh hello_perf.py 3
+      - run: sudo ./run.sh hello_ring.py 3
+      - run: sudo ./run.sh hello_tail.py 3
+      - name: without root
+        run: |
+          python3 -u hello.py > out/hello_noroot.txt 2>&1 || true
+          tail -5 out/hello_noroot.txt
+      - name: show
+        if: always()
+        run: for f in out/*.txt; do echo "===== $f"; head -40 "$f"; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ch02-out
+          path: ch02/out/
