@@ -8,7 +8,7 @@ mkdir -p out
 echo > /sys/kernel/tracing/trace 2>/dev/null || true   # 이전 실습 기록 비우기
 python3 -u "$script" >"$out" 2>&1 &
 pid=$!
-sleep 5                                                 # 컴파일·로드 대기
+for _ in $(seq 120); do grep -q "^ready" "$out" && break; sleep 0.5; done   # 컴파일·로드·부착 대기
 for i in 1 2 3; do
   ls / >/dev/null                                       # execve (runner 사용자)
   sudo -u runner true 2>/dev/null || true

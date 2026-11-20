@@ -28,6 +28,7 @@ int hello(void *ctx) {
 
 b = BPF(text=program)
 b.attach_kprobe(event=b.get_syscall_fnname("execve"), fn_name="hello")
+print("ready", flush=True)
 
 def on_event(cpu, data, size):
     e = b["events"].event(data)

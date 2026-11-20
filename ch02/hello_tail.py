@@ -44,5 +44,5 @@ for nr in range(222, 227):
 for nr in (21, 22, 25):
     prog_array[ct.c_int(nr)] = ct.c_int(ignore_fn.fd)
 
-print("attached", flush=True)
+print("ready", flush=True)
 b.trace_print()

@@ -31,7 +31,20 @@ jobs:
       - run: sudo ./run.sh hello_map.py 5
       - run: sudo ./run.sh hello_perf.py 3
       - run: sudo ./run.sh hello_ring.py 3
-      - run: sudo ./run.sh hello_tail.py 3
+      - name: tail call (요약만 남긴다)
+        run: |
+          sudo ./run.sh hello_tail.py 3
+          f=out/hello_tail.txt
+          {
+            echo "total lines: $(wc -l < $f)"
+            echo "--- 꼬리 호출된 프로그램이 찍은 줄"
+            grep -E "Executing|timer" $f | head -30
+            echo "--- Another syscall 상위 번호"
+            grep -o "Another syscall: [0-9]*" $f | sort | uniq -c | sort -rn | head -8
+            echo "--- 기록한 프로세스 상위"
+            grep -oE "^b'[[:space:]]*[^ ]+-[0-9]+" $f | sed -E "s/^b'[[:space:]]*//; s/-[0-9]+$//" | sort | uniq -c | sort -rn | head -5
+          } > out/hello_tail_summary.txt
+          sudo rm $f
       - name: without root
         run: |
           python3 -u hello.py > out/hello_noroot.txt 2>&1 || true

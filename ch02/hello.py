@@ -11,6 +11,6 @@ int hello(void *ctx) {
 
 b = BPF(text=program)                           # 컴파일 + 커널에 로드
 syscall = b.get_syscall_fnname("execve")        # 아키텍처별 커널 함수 이름
-print("attach:", syscall, flush=True)
 b.attach_kprobe(event=syscall, fn_name="hello") # 이벤트에 붙인다
+print("ready:", syscall, flush=True)
 b.trace_print()                                 # 출력을 계속 읽는다
